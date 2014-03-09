@@ -31,9 +31,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 void print_usage() {
+    printf("rfid_app version 1.0, Copyright (c) 2014 Benjamin Larsson <benjamin@southpole.se>\n");     
     printf("Usage: rfid_app [OPTION]...\n");
     printf("\t -r Read rfid tag/fob\n");
-    printf("\t -f [0|1|2|3] output read result in differnt formats\n");
+    printf("\t -f [0|1|2|3|4] output read result in differnt formats\n");
     printf("\t -l try to detect rfid hardware\n");
     printf("\t -d tty device to connect to (/dev/ttyUSB0 default)\n");
     printf("\t -w [10 char hex string] write data to tag/fob\n");
@@ -150,8 +151,9 @@ int send_read(int tty_fd_l, int beep, int format) {
             }
             break;
         case 1:     // HEX (spaces)
-            for (i=7 ; i<12 ; i++) {
-                printf("%02X ",c[i]);
+            printf("%02X",c[7]);
+            for (i=8 ; i<12 ; i++) {
+                printf(" %02X",c[i]);
             }
             break;
         case 2:     // 8H - 10 decimal
