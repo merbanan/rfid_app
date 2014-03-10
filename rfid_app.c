@@ -34,11 +34,11 @@ void print_usage() {
     printf("rfid_app version 1.0, Copyright (c) 2014 Benjamin Larsson <benjamin@southpole.se>\n");     
     printf("Usage: rfid_app [OPTION]...\n");
     printf("\t -r Read rfid tag/fob\n");
-    printf("\t -f [0|1|2|3|4] output read result in differnt formats\n");
+    printf("\t -f [0|1|2|3|4] output read result in different formats\n");
     printf("\t -l try to detect rfid hardware\n");
     printf("\t -d tty device to connect to (/dev/ttyUSB0 default)\n");
     printf("\t -w [10 char hex string] write data to tag/fob\n");
-    printf("\t -b don't beep while accessing tag/fob, might affect some tags\n");
+    printf("\t -b don't beep while accessing tag/fob, might affect some tags (T55xx/EM4305) tags\n");
 }
 
 int open_device(char* tty_device) {
@@ -118,7 +118,7 @@ int send_read(int tty_fd_l, int beep, int format) {
     sleep(1);
     cnt = read(tty_fd_l,&res_arr,100);
 
-    // Check how many bytes where returned to decide if we found a gob/tag
+    // Check tag present byte
     if (res_arr[6] == 0x01) {
         printf("NOTAG\n");
         return -1;
@@ -158,7 +158,7 @@ int send_read(int tty_fd_l, int beep, int format) {
             break;
         case 2:     // 8H - 10 decimal
             {
-                unsigned int x1 = (c[9] << 16) | (c[10] << 8) | c[11];
+                unsigned int x1 = (c[8] << 24) | (c[9] << 16) | (c[10] << 8) | c[11];
                 printf("%010d", x1);
             }
             break;
