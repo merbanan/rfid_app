@@ -24,7 +24,7 @@ void print_usage() {
     printf("p1d_rfid version 1.0, Copyright (c) 2014 Benjamin Larsson <benjamin@southpole.se>\n");  
     printf("Usage: p1d_rfid [OPTION]...\n");
     printf("\t -r Read rfid tag/fob\n");
-    printf("\t -f [0|1|2|3|4] output read result in differnt formats\n");
+    printf("\t -f [0|1|2|3|4] output read result in different formats\n");
     printf("\t -l try to detect rfid hardware\n");
     printf("\t -d tty device to connect to (/dev/ttyUSB0 default)\n");
     printf("\t -w [10 char hex string] write data to tag/fob (T55xx tags)\n");
