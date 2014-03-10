@@ -1,14 +1,20 @@
 rfid_app
 ========
 
-Linux version for China 125kHz rfid reader/writer (RFID_APP_EN)
+Linux command line tool for China 125kHz rfid reader/writer (RFID_APP_EN)
+
+
+p1d_rfid
+========
+
+Linux command line tool for Priority 1 Design rfid reader/writer
 
 
 Building
 ========
 
 gcc rfid_app.c -o rfid_app
-
+gcc p1d_rfid.c -o p1d_rfid
 
 Usage
 =====
@@ -17,7 +23,7 @@ Usage
 rfid_app version 1.0, Copyright (c) 2014 Benjamin Larsson <benjamin@southpole.se>
 Usage: rfid_app [OPTION]...
 	 -r Read rfid tag/fob
-	 -f [0|1|2|3|4] output read result in differnt formats
+	 -f [0|1|2|3|4] output read result in different formats
 	 -l try to detect rfid hardware
 	 -d tty device to connect to (/dev/ttyUSB0 default)
 	 -w [10 char hex string] write data to tag/fob
@@ -26,6 +32,9 @@ Usage: rfid_app [OPTION]...
 Detect rfid hardware:
 ./rfid_app -l
 Found device: ID card reader & writer6
+
+./p1d_rfid -l
+Found P1D device with firmware version: 208
 
 Reading a tag (default hex output):
 ./rfid_app -r
@@ -45,3 +54,8 @@ Reading a tag (2H+4H decimal output):
 Writing a tag:
 ./rfid_app -w 0F0021BC9B
 0F0021BC9B
+
+Writing to an incompatible tag:
+./p1d_rfid -w 0F0021BC9B
+NOTAG
+
