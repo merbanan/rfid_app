@@ -153,27 +153,6 @@ const static int TIMEOUT=5000; /* timeout in ms */
 
 static int verbose = 0;
 
-static char question_hid[PACKET_CTRL_LEN] = {
-        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00,
-        0xaa, 0x00, 0x03, 0x25, 0x00, 0x00, 0x26, 0xbb,
-};
-
-static char question_get_version[PACKET_CTRL_LEN] = {
-        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00,
-        0xaa, 0x00, 0x01, 0x86, 0x87, 0xbb,
-};
-
-static char question_get_version_bad_xorsum[PACKET_CTRL_LEN] = {
-        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00,
-        0xaa, 0x00, 0x01, 0x86, 0x89, 0xbb,
-};
-/*
-static char question_hid[PACKET_CTRL_LEN] = {
-        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00,
-        0xaa, 0x00, 0x01, 0x85, 0x84, 0xbb,
-};
-*/
-
 static int calc_crc(uint8_t* buf, unsigned int len)
 {
     int i;
@@ -374,36 +353,6 @@ static int create_out_packet(uint8_t* pkt, int cmd, uint8_t* data, int data_size
         return -1;
     }
 };
-
-
-static int test_control_transfer(struct libusb_device_handle *devh) 
-{ 
-    int r,i; 
-    unsigned char answer[PACKET_CTRL_LEN] = {0}; 
-
-    r = libusb_control_transfer(devh,CTRL_OUT,HID_SET_REPORT,(HID_REPORT_TYPE_FEATURE<<8)|0x00,                 0,question_hid, PACKET_CTRL_LEN,TIMEOUT); 
-    if (r < 0) { 
-        fprintf(stderr, "Control Out error %d\n", r); 
-        return r; 
-    }
-    handle_packet(question_hid, NULL);
-
-    r = libusb_control_transfer(devh,CTRL_IN,HID_GET_REPORT,(HID_REPORT_TYPE_FEATURE<<8)|0x00,0, answer,PACKET_CTRL_LEN, TIMEOUT); 
-    if (r < 0) { 
-        fprintf(stderr, "Control IN error %d\n", r); 
-        return r; 
-    }
-    handle_packet(answer, NULL);
-
-    for(i = 0;i < 19; i++) { 
-        if(i%8 == 0) 
-            printf("\n"); 
-        printf("%02x ",answer[i]); 
-    } 
-    printf("\n"); 
-
-    return 0; 
-} 
 
 static void prepare_write_buffer(uint8_t* db, uint8_t* rn, int tag_type)
 {
