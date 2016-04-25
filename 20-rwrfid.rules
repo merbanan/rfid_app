@@ -1,0 +1,3 @@
+# Chinese RFID RW
+ATTR{idVendor}=="ffff", ATTR{idProduct}=="0035", MODE="664", GROUP="plugdev"
+
