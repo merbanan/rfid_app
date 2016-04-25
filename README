@@ -19,9 +19,9 @@ Linux command line tool for another China 125kHz rfid reader/writer usb based on
 Building
 ========
 
-gcc rfid_app.c -o rfid_app
-gcc p1d_rfid.c -o p1d_rfid
-gcc -o idrw_linux idrw_linux.c -I/usr/local/include -L. -lnsl -lm -lc -L/usr/local/lib -lusb-1.0
+make - for building the binaries
+make install - for installing the idrw_linux udev rules file
+
 
 Usage
 =====
