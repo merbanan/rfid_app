@@ -173,8 +173,26 @@ int send_read(int tty_fd_l, int beep, int format) {
                 unsigned int x1 = c[9];
                 unsigned int x2 = (c[10] << 8) | c[11];
                 printf("%03d,%05d", x1,x2);
+                break;
             }
-            break;
+        case 5:     // (5H) in decimal but remove 10th digit
+            {
+                unsigned long long int x2 = c[7];
+                unsigned long long int x1 = ((x2 << 32) | (c[8] << 24) | (c[9] << 16) | (c[10] << 8) | c[11]);
+                printf("%09llu", x1);
+                break;
+            }
+        case 6:
+            {
+                unsigned char num_buf[11] = {0};
+                unsigned char* num_buf_ptr = num_buf + 1;
+                unsigned long long int x2 = c[7];
+                unsigned long long int x1 = ((x2 << 32) | (c[8] << 24) | (c[9] << 16) | (c[10] << 8) | c[11]);
+                snprintf(num_buf, 11, "%09llu", x1);
+                printf("%s", num_buf_ptr);
+                break;
+            }
+
         default: printf("Unknown format: %d\n", format);
     }
 
