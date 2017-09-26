@@ -91,6 +91,80 @@ usb 6-1.4.4: New USB device strings: Mfr=0, Product=1, SerialNumber=0
 usb 6-1.4.4: Product: USB Reader
 usbhid 6-1.4.4:1.0: couldn't find an input interrupt endpoint
 
+
+Bus 008 Device 042: ID 6688:6850  
+Device Descriptor:
+  bLength                18
+  bDescriptorType         1
+  bcdUSB               2.00
+  bDeviceClass            0 (Defined at Interface level)
+  bDeviceSubClass         0 
+  bDeviceProtocol         0 
+  bMaxPacketSize0         8
+  idVendor           0x6688 
+  idProduct          0x6850 
+  bcdDevice            1.01
+  iManufacturer           1 CTX
+  iProduct                2 203-ID-RW
+  iSerial                 3 (error)
+  bNumConfigurations      1
+  Configuration Descriptor:
+    bLength                 9
+    bDescriptorType         2
+    wTotalLength           41
+    bNumInterfaces          1
+    bConfigurationValue     1
+    iConfiguration          0 
+    bmAttributes         0xa0
+      (Bus Powered)
+      Remote Wakeup
+    MaxPower              200mA
+    Interface Descriptor:
+      bLength                 9
+      bDescriptorType         4
+      bInterfaceNumber        0
+      bAlternateSetting       0
+      bNumEndpoints           2
+      bInterfaceClass         3 Human Interface Device
+      bInterfaceSubClass      0 No Subclass
+      bInterfaceProtocol      0 None
+      iInterface              0 
+        HID Device Descriptor:
+          bLength                 9
+          bDescriptorType        33
+          bcdHID               1.10
+          bCountryCode            0 Not supported
+          bNumDescriptors         1
+          bDescriptorType        34 Report
+          wDescriptorLength      46
+         Report Descriptors: 
+           ** UNAVAILABLE **
+      Endpoint Descriptor:
+        bLength                 7
+        bDescriptorType         5
+        bEndpointAddress     0x85  EP 5 IN
+        bmAttributes            3
+          Transfer Type            Interrupt
+          Synch Type               None
+          Usage Type               Data
+        wMaxPacketSize     0x0030  1x 48 bytes
+        bInterval               1
+      Endpoint Descriptor:
+        bLength                 7
+        bDescriptorType         5
+        bEndpointAddress     0x03  EP 3 OUT
+        bmAttributes            3
+          Transfer Type            Interrupt
+          Synch Type               None
+          Usage Type               Data
+        wMaxPacketSize     0x0018  1x 24 bytes
+        bInterval               1
+Device Status:     0x0000
+  (Bus Powered)
+
+
+
+
 The code is loosly based on the 通讯协议v1.3(IS014443A+B+15693).pdf specification and
 https://github.com/Simpleyyt/libfunction_so_usb
 
@@ -108,6 +182,9 @@ https://github.com/Simpleyyt/libfunction_so_usb
 
 #define VENDOR_ID 0xffff
 #define PRODUCT_ID 0x0035
+#define VENDOR_ID2 0x6688
+#define PRODUCT_ID2 0x6850
+
 
 // HID Class-Specific Requests values. See section 7.2 of the HID specifications 
 #define HID_GET_REPORT                0x01 
@@ -549,7 +626,9 @@ int main(int argc,char** argv)
         exit(1); 
     } 
 
-    devh = libusb_open_device_with_vid_pid(NULL, VENDOR_ID, PRODUCT_ID); 
+    devh = libusb_open_device_with_vid_pid(NULL, VENDOR_ID, PRODUCT_ID);
+	if (!devh)
+		devh = libusb_open_device_with_vid_pid(NULL, VENDOR_ID2, PRODUCT_ID2);
     if (!devh) { 
         if (verbose) fprintf(stderr, "Could not find/open LVR Generic HID device\n"); 
         goto out; 
