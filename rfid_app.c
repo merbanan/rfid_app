@@ -374,7 +374,7 @@ int gen_aptus_tags(int tty_fd_l) {
                 send_write(tty_fd_l, 0, em_num, 1);
                 send_read(tty_fd_l, 0, 0, readout);
             }
-            printf("%s %s\n",em_num, readout);
+            printf("%d %s %s\n",rand_a, em_num, readout);
 			send_beep(tty_fd_l);
         }
     }
