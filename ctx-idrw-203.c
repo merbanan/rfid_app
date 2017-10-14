@@ -138,39 +138,95 @@ Usb payload is 24 bytes large, the unknown layout is most likely T5577/EM4305 st
 #define VENDOR_ID 0x6688
 #define PRODUCT_ID 0x6850
 
-// HID Class-Specific Requests values. See section 7.2 of the HID specifications 
-#define HID_GET_REPORT                0x01 
-#define HID_GET_IDLE                  0x02 
-#define HID_GET_PROTOCOL              0x03 
-#define HID_SET_REPORT                0x09 
-#define HID_SET_IDLE                  0x0A 
-#define HID_SET_PROTOCOL              0x0B 
-#define HID_REPORT_TYPE_INPUT         0x01 
-#define HID_REPORT_TYPE_OUTPUT        0x02 
-#define HID_REPORT_TYPE_FEATURE       0x03 
-
-#define CTRL_IN      LIBUSB_ENDPOINT_IN |LIBUSB_REQUEST_TYPE_CLASS|LIBUSB_RECIPIENT_INTERFACE 
-#define CTRL_OUT     LIBUSB_ENDPOINT_OUT|LIBUSB_REQUEST_TYPE_CLASS|LIBUSB_RECIPIENT_INTERFACE 
-
 #define ENDPOINT_IN		0x85
 #define ENDPOINT_OUT	0x03
 
+#define MESSAGE_START_MARKER	0x01
+#define MESSAGE_END_MARKER		0x04
+#define MESSAGE_STRUCTURE_SIZE	5
 
+/* Commands (from computer) */
+#define CMD_BUZZER			0x03
+#define CMD_EM4100ID_READ	0x10
+
+/* Commands (to computer) */
+#define CMD_EM4100ID_ANSWER	0x90
 static int verbose = 0;
 
 int timeout=1000; /* timeout in ms */
 
-int send_buzzer(libusb_device_handle *devh) {
+int prepare_message(uint8_t *out_buf, int endpoint, int command, uint8_t *pl_buf, int pl_buf_size) {
 
-	int r;
-	uint8_t buzz_cmd[24] = {0x03, 0x01, 0x06, 0x03, 0x09, 0x0d, 0x04, 0 ,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-	uint8_t answer[48] = {0};
+	int i,j;
+	int x = 0;
+	out_buf[0] = endpoint;
+	out_buf[1] = MESSAGE_START_MARKER;
+	out_buf[2] = 5 + pl_buf_size;	//size of message
+	out_buf[3] = command;
+	i = 4;
+	if (pl_buf_size > 0) {
+		memcpy(&out_buf[i], pl_buf, pl_buf_size);
+		i+=pl_buf_size;
+	}
+	/* Calculate checksum byte */
+	for (j=1 ; j<i ; j++) {
+		x = x^out_buf[j];
+	}
+	out_buf[i] = x;
+	out_buf[i+1] = MESSAGE_END_MARKER;
+
+
+    for (i=0 ; i<24 ; i++) {
+        if(i%16 == 0)
+            if (verbose) fprintf(stdout,"\n");
+        if (verbose) fprintf(stdout, "%02x ", out_buf[i]);
+    }
+    if (verbose) fprintf(stdout, "\n");
+
+};
+
+int send_message(struct libusb_device_handle * devh, uint8_t *message, uint8_t *answer) {
+	int r,i;
 	int bt = 0;
-	r = libusb_interrupt_transfer(devh, ENDPOINT_OUT, buzz_cmd, 24, &bt, timeout);
+	r = libusb_interrupt_transfer(devh, ENDPOINT_OUT, message, 24, &bt, timeout);
 
-	r = libusb_interrupt_transfer(devh, ENDPOINT_IN, buzz_cmd, 48, &bt, timeout);
+	r = libusb_interrupt_transfer(devh, ENDPOINT_IN, answer, 48, &bt, timeout);
 
-}
+    if (verbose) fprintf(stdout, "Answer:\n");
+    for (i=0 ; i<48 ; i++) {
+        if(i%16 == 0)
+            if (verbose) fprintf(stdout,"\n");
+        if (verbose) fprintf(stdout, "%02x ", answer[i]);
+    }
+    if (verbose) fprintf(stdout, "\n");
+
+};
+
+int send_read_em4100id(struct libusb_device_handle * devh) {
+	uint8_t cmd[24] = {0};
+	uint8_t answer[48] = {0};
+	int cmd_answer_size = 0;
+
+	uint8_t buzz[1] = {9};
+	prepare_message(cmd, ENDPOINT_OUT, CMD_BUZZER, &buzz[0], 1);
+	memset(cmd, 0, 24);
+
+	prepare_message(cmd, ENDPOINT_OUT, CMD_EM4100ID_READ, NULL, 0);
+	send_message(devh, cmd, answer);
+	cmd_answer_size = answer[2] - MESSAGE_STRUCTURE_SIZE - 1;	// 1 extra unknow byte
+	if (cmd_answer_size < 5)
+		fprintf(stdout, "NOTAG\n");
+	else
+		fprintf(stdout, "%02x%02x%02x%02x%02x\n",answer[5],answer[6],answer[7],answer[8],answer[9]);
+};
+
+int send_buzzer(struct libusb_device_handle * devh) {
+	uint8_t cmd[24] = {0};
+	uint8_t answer[48] = {0};
+	uint8_t buzz[1] = {9};
+	prepare_message(cmd, ENDPOINT_OUT, CMD_BUZZER, &buzz[0], 1);
+	send_message(devh, cmd, answer);
+};
 
 int main(int argc,char** argv)
 { 
@@ -238,16 +294,16 @@ int main(int argc,char** argv)
         fprintf(stderr, "libusb_claim_interface error %d\n", r); 
         goto out; 
     }
-/*
-    if (read_device) {
-        send_read_settings(devh);
-    }
 
+    if (read_device) {
+        send_read_em4100id(devh);
+    }
+/*
     if (write_device) {
         send_write_settings(devh, mode, semicolon, questionmark, split, enter);
     }
 */
-	send_buzzer(devh);
+//	send_buzzer(devh);
     libusb_release_interface(devh, 0); 
 out: 
     //	libusb_reset_device(devh); 
@@ -255,4 +311,4 @@ out:
     libusb_exit(NULL); 
 exit:
     return r >= 0 ? r : -r; 
-}
+};
