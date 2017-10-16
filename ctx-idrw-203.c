@@ -148,6 +148,7 @@ Usb payload is 24 bytes large, the unknown layout is most likely T5577/EM4305 st
 /* Commands (from computer) */
 #define CMD_BUZZER			0x03
 #define CMD_EM4100ID_READ	0x10
+#define CMD_T5557_BLOCK_WRITE	0x12
 
 /* Commands (to computer) */
 #define CMD_EM4100ID_ANSWER	0x90
@@ -189,8 +190,9 @@ int send_message(struct libusb_device_handle * devh, uint8_t *message, uint8_t *
 	int r,i;
 	int bt = 0;
 	r = libusb_interrupt_transfer(devh, ENDPOINT_OUT, message, 24, &bt, timeout);
-
+usleep(20000);
 	r = libusb_interrupt_transfer(devh, ENDPOINT_IN, answer, 48, &bt, timeout);
+	usleep(10000);
 
     if (verbose) fprintf(stdout, "Answer:\n");
     for (i=0 ; i<48 ; i++) {
@@ -207,10 +209,6 @@ int send_read_em4100id(struct libusb_device_handle * devh) {
 	uint8_t answer[48] = {0};
 	int cmd_answer_size = 0;
 
-	uint8_t buzz[1] = {9};
-	prepare_message(cmd, ENDPOINT_OUT, CMD_BUZZER, &buzz[0], 1);
-	memset(cmd, 0, 24);
-
 	prepare_message(cmd, ENDPOINT_OUT, CMD_EM4100ID_READ, NULL, 0);
 	send_message(devh, cmd, answer);
 	cmd_answer_size = answer[2] - MESSAGE_STRUCTURE_SIZE - 1;	// 1 extra unknow byte
@@ -218,7 +216,153 @@ int send_read_em4100id(struct libusb_device_handle * devh) {
 		fprintf(stdout, "NOTAG\n");
 	else
 		fprintf(stdout, "%02x%02x%02x%02x%02x\n",answer[5],answer[6],answer[7],answer[8],answer[9]);
+
+	return 0;
 };
+
+int t55xx_reset(struct libusb_device_handle * devh) {
+	uint8_t cmd[24] = {0};
+	uint8_t answer[48] = {0};
+	uint8_t reset[5] = {0x0, 0x0, 0x0, 0x0, 0x0};
+
+	prepare_message(cmd, ENDPOINT_OUT, CMD_T5557_BLOCK_WRITE, reset, 5);
+	send_message(devh, cmd, answer);
+	
+}
+
+int t55xx_block_write(struct libusb_device_handle * devh, int block, uint8_t* data_buf, int data_buf_size, uint8_t *password) {
+	uint8_t cmd[24] = {0};
+	uint8_t answer[48] = {0};
+	uint8_t bw_buf[7] = {0};
+	int cmd_answer_size = 0;
+
+	
+	bw_buf[0] = 0x04; //??
+	bw_buf[1] = 0x00; //??
+	bw_buf[2] = data_buf[0];
+	bw_buf[3] = data_buf[1];
+	bw_buf[4] = data_buf[2];
+	bw_buf[5] = data_buf[3];
+	bw_buf[6] = block;
+
+
+	prepare_message(cmd, ENDPOINT_OUT, CMD_T5557_BLOCK_WRITE, bw_buf, 7);
+	send_message(devh, cmd, answer);
+
+
+/* 	SS PP 11 22 33 44 BB
+
+	SS	Subcommand	(4 for write)	or matches t5557 specs
+	PP	Protection bit
+	11	8 first bits
+	22	8 second bits
+	33  8 third bits
+	44	8 forth bits
+	BB	block number
+*/
+/*
+0000   03 01 0c 12 04 00 ff 80 60 28 01 2d 04 00 00 00
+0000   03 01 0c 12 04 00 0c 04 81 42 02 d2 04 00 00 00
+
+0        1        2        3        4        5        6        7
+ff       80       60       28       0c       04       81       42
+11111111 10000000 01100000 00101000 00001100 00000100 10000001 01000010
+HHHHHHHH H0000011 11122222 33333444 44555556 66667777 78888899 999SSSSS
+00000000 01111111 11122222 22222333 33333334 44445555 55555566 66666666
+          0000X00 00X1111X 1111X222 2X2222X3 333X3333 X4444X44 44XCCCCS
+111111111
+00000
+00011	1
+00000
+00101	2
+00000
+00110	3
+00000
+01001	4
+00000
+01010	5
+00010
+*/
+}
+
+int em4100_column_parity(uint8_t* hex_buf, int shift) {
+	int i, p=0;
+
+	for (i=0 ; i<5 ; i++) {
+		p += (hex_buf[i] >> shift+4) &1;
+		p += (hex_buf[i] >> shift) &1;
+	}
+	return p&1;
+}
+
+int hex_to_em4100_layout(uint8_t* hex_buf, uint8_t* out_buf) {
+	int p0,p1,p2,p3,p4,p5,p6,p7,p8,p9;
+	int pc0,pc1,pc2,pc3;
+	uint8_t ep[16] = {0,1,1,0, 1,0,0,1, 1,0,0,1, 0,1,1,0};
+
+	p0 = ep[hex_buf[0]  >> 4];
+	p1 = ep[hex_buf[0] & 0xf];
+	p2 = ep[hex_buf[1]  >> 4];
+	p3 = ep[hex_buf[1] & 0xf];
+	p4 = ep[hex_buf[2]  >> 4];
+	p5 = ep[hex_buf[2] & 0xf];
+	p6 = ep[hex_buf[3]  >> 4];
+	p7 = ep[hex_buf[3] & 0xf];
+	p8 = ep[hex_buf[4]  >> 4];
+	p9 = ep[hex_buf[4] & 0xf];
+
+	pc0 = em4100_column_parity(hex_buf, 3);
+	pc1 = em4100_column_parity(hex_buf, 2);
+	pc2 = em4100_column_parity(hex_buf, 1);
+	pc3 = em4100_column_parity(hex_buf, 0);
+
+	out_buf[0] = 0xff;
+	out_buf[1] = 0x80 | ((hex_buf[0]>>1)&0x78) | (p0<<2) | ((hex_buf[0]>>2)&0x03);
+	out_buf[2] = (hex_buf[0]<<6) | (p1<<5) | (hex_buf[1]>>3) | p2;
+	out_buf[3] = (hex_buf[1]<<4) | (p3<<3) | (hex_buf[2]>>5);
+	out_buf[4] = ((hex_buf[2]<<3)&0x80) | (p4<<6) | ((hex_buf[2]<<2)&0x3c) | (p5<<1) | (hex_buf[3]>>7);
+	out_buf[5] = ((hex_buf[3]<<1)&0xe0) | (p6<<4) | (hex_buf[3]&0xf);
+	out_buf[6] = (p7<<7) | ((hex_buf[4]>>1)&0x78) | (p8<<2) | ((hex_buf[4]>>2)&0x03);
+	out_buf[7] = (hex_buf[4]<<6) | (p9<<6) | (pc0<<4) | (pc1<<3) | (pc2<<2) | (pc3<<1); 
+}
+
+int send_write_em4100id(struct libusb_device_handle * devh, uint8_t *hex_buf) {
+	uint8_t cmd[24] = {0};
+	uint8_t answer[48] = {0};
+	uint8_t ds[8] = {0};
+	uint8_t em4100_config[4] = {0x00, 0x14, 0x80, 0x41};
+	int cmd_answer_size = 0;
+
+	fprintf(stdout, "%02x%02x%02x%02x%02x\n",hex_buf[0],hex_buf[1],hex_buf[2],hex_buf[3],hex_buf[4]);
+	hex_to_em4100_layout(hex_buf, ds);
+	fprintf(stdout, "%02x %02x %02x %02x ",  ds[0],ds[1],ds[2],ds[3]);
+	fprintf(stdout, "%02x %02x %02x %02x\n",ds[4],ds[5],ds[6],ds[7]);
+
+	/* write em4100 bitstream to block 1 and 2 */
+	t55xx_block_write(devh, 1, ds, 4, NULL);
+	t55xx_block_write(devh, 2, &ds[4], 4, NULL);
+
+	//0000   03 01 0c 12 04 00 00 14 80 41 00 ce 04
+
+	/* write configuration in block 0 to emulate EM4100; RF/64, Manchester, max block = 2 */
+	t55xx_block_write(devh, 0, em4100_config, 4, NULL);
+
+	/* reset tag */
+	t55xx_reset(devh);
+
+	send_read_em4100id(devh);
+//	prepare_message(cmd, ENDPOINT_OUT, CMD_T5557_BLOCK_WRITE, bw_buf, 7 CMD_EM4100ID_READ, NULL, 0);
+//	send_message(devh, cmd, answer);
+//	cmd_answer_size = answer[2] - MESSAGE_STRUCTURE_SIZE - 1;	// 1 extra unknow byte
+//	if (cmd_answer_size < 5)
+//		fprintf(stdout, "NOTAG\n");
+//	else
+//		fprintf(stdout, "%02x%02x%02x%02x%02x\n",answer[5],answer[6],answer[7],answer[8],answer[9]);
+
+	return 0;
+};
+
+
 
 int send_buzzer(struct libusb_device_handle * devh) {
 	uint8_t cmd[24] = {0};
@@ -227,6 +371,18 @@ int send_buzzer(struct libusb_device_handle * devh) {
 	prepare_message(cmd, ENDPOINT_OUT, CMD_BUZZER, &buzz[0], 1);
 	send_message(devh, cmd, answer);
 };
+
+int hex_string_to_bytes(uint8_t *hex_string, uint8_t *byte_array) {
+	uint8_t* c1;
+	int i,idx=0;
+	unsigned int bytes[2];
+	for(i=0 ; i<10 ; i+=2) {
+	    c1 = &hex_string[i];
+	    sscanf(c1, "%02x", &bytes[0]);
+	    byte_array[idx] = bytes[0];
+	    idx++;
+	}
+}
 
 int main(int argc,char** argv)
 { 
@@ -239,7 +395,7 @@ int main(int argc,char** argv)
     int mode=0, semicolon=0, questionmark=0, split=0, enter=0;
     char* write_string = NULL;
 
-    while ((option = getopt(argc, argv,"wvrm:sqle")) != -1) {
+    while ((option = getopt(argc, argv,"w:vrm:sqle")) != -1) {
         switch (option) {
             case 'v' : verbose = 1;
                 break;
@@ -255,7 +411,7 @@ int main(int argc,char** argv)
                 break;
             case 'e' : enter = 1;
                 break;
-            case 'w' : write_device = 1;
+            case 'w' : write_string = optarg;
                 break;
             default: ;/*print_usage()*/; 
                  exit(EXIT_FAILURE);
@@ -298,11 +454,13 @@ int main(int argc,char** argv)
     if (read_device) {
         send_read_em4100id(devh);
     }
-/*
-    if (write_device) {
-        send_write_settings(devh, mode, semicolon, questionmark, split, enter);
+
+    if (write_string) {
+		uint8_t hex_buf[5];
+		hex_string_to_bytes(write_string, hex_buf);
+		send_write_em4100id(devh, hex_buf);
     }
-*/
+
 //	send_buzzer(devh);
     libusb_release_interface(devh, 0); 
 out: 
