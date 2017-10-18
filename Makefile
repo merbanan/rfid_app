@@ -13,7 +13,7 @@ sycreader_set: sycreader_set.c
 	gcc sycreader_set.c -o sycreader_set -I/usr/local/include -L. -lnsl -lm -lc -L/usr/local/lib -lusb-1.0
 
 ctx-idrw-203: ctx-idrw-203.c
-	gcc ctx-idrw-203.c -o ctx-idrw-203 -I/usr/local/include -L. -lnsl -lm -lc -L/usr/local/lib -lusb-1.0
+	gcc ctx-idrw-203.c -O0 -g3 -o ctx-idrw-203 -I/usr/local/include -L. -lnsl -lm -lc -L/usr/local/lib -lusb-1.0
 
 clean:
 	rm -f *.o rfid_app idrw_linux p1d_rfid sycreader_set ctx-idrw-203

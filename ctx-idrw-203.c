@@ -133,6 +133,7 @@ Usb payload is 24 bytes large, the unknown layout is most likely T5577/EM4305 st
 #include <stdlib.h> 
 #include <getopt.h>
 #include <unistd.h>
+#include <malloc.h>
 #include <libusb-1.0/libusb.h> 
 
 #define VENDOR_ID 0x6688
@@ -153,13 +154,15 @@ Usb payload is 24 bytes large, the unknown layout is most likely T5577/EM4305 st
 /* Commands (to computer) */
 #define CMD_EM4100ID_ANSWER	0x90
 static int verbose = 0;
+static int handle_events = 0;
 
-int timeout=1000; /* timeout in ms */
+static int timeout=1000; /* timeout in ms */
 
 int prepare_message(uint8_t *out_buf, int endpoint, int command, uint8_t *pl_buf, int pl_buf_size) {
 
 	int i,j;
 	int x = 0;
+	memset(out_buf, 0, 24);
 	out_buf[0] = endpoint;
 	out_buf[1] = MESSAGE_START_MARKER;
 	out_buf[2] = 5 + pl_buf_size;	//size of message
@@ -189,10 +192,10 @@ int prepare_message(uint8_t *out_buf, int endpoint, int command, uint8_t *pl_buf
 int send_message(struct libusb_device_handle * devh, uint8_t *message, uint8_t *answer) {
 	int r,i;
 	int bt = 0;
-	r = libusb_interrupt_transfer(devh, ENDPOINT_OUT, message, 24, &bt, timeout);
-usleep(20000);
+//usleep(20000);
 	r = libusb_interrupt_transfer(devh, ENDPOINT_IN, answer, 48, &bt, timeout);
-	usleep(10000);
+	r = libusb_interrupt_transfer(devh, ENDPOINT_OUT, message, 24, &bt, timeout);
+//	usleep(50000);
 
     if (verbose) fprintf(stdout, "Answer:\n");
     for (i=0 ; i<48 ; i++) {
@@ -204,13 +207,110 @@ usleep(20000);
 
 };
 
+
+void interrupt_cb(struct libusb_transfer *xfr)
+{
+
+	uint8_t* answer;
+
+    switch(xfr->status)
+    {
+        case LIBUSB_TRANSFER_COMPLETED:
+			 handle_events-=1;
+			answer = xfr->buffer;
+			fprintf(stdout, "interrupt transfer actual_length: %d ", xfr->actual_length);
+			if (xfr->actual_length == 48)
+				fprintf(stdout, "%02x%02x%02x%02x%02x\n",answer[5],answer[6],answer[7],answer[8],answer[9]);
+			else
+				fprintf(stdout, "\n");
+            break;
+        case LIBUSB_TRANSFER_CANCELLED:
+        case LIBUSB_TRANSFER_NO_DEVICE:
+        case LIBUSB_TRANSFER_TIMED_OUT:
+        case LIBUSB_TRANSFER_ERROR:
+        case LIBUSB_TRANSFER_STALL:
+        case LIBUSB_TRANSFER_OVERFLOW:
+if (verbose) fprintf(stdout, "transfer error\n");
+            break;
+    }
+}
+
+int init_protocol(struct libusb_device_handle * devh) {
+
+	// the protocol needs a previous sent interrupt in request
+	// and it should not be handled
+	// most likely to sync the device buffer somehow
+	uint8_t* message;
+	struct libusb_transfer *xfr_in;
+	message = calloc(1, 48);
+	xfr_in = libusb_alloc_transfer(0);
+	libusb_fill_interrupt_transfer(xfr_in, devh, ENDPOINT_IN, message, 48,
+		                      interrupt_cb, NULL, 0);
+
+	if(libusb_submit_transfer(xfr_in) < 0)
+		libusb_free_transfer(xfr_in);
+	else
+		if (verbose) fprintf(stdout, "init succeeded\n");
+		
+	usleep(500 *1000);
+}
+
+int uninit_protocol(struct libusb_device_handle * devh) {
+
+if (verbose) fprintf(stdout, "uninit_protocol\n");
+
+	while(handle_events) {
+		if(libusb_handle_events(NULL) != LIBUSB_SUCCESS) break;
+		if (verbose) fprintf(stdout, "loop uninit\n");
+	}
+
+
+}
+
+int send_message_async(struct libusb_device_handle * devh, uint8_t *message, uint8_t *answer) {
+	int r,i;
+	int bt = 0;
+	struct libusb_transfer *xfr_out, *xfr_in;
+	uint8_t* usb_msg_out = malloc(24);
+	uint8_t* usb_msg_in = calloc(1, 48);
+
+	xfr_out = libusb_alloc_transfer(0);
+	xfr_in = libusb_alloc_transfer(0);
+
+	memcpy(usb_msg_out, message, 24);
+	libusb_fill_interrupt_transfer(xfr_out, devh, ENDPOINT_OUT, usb_msg_out, 24,
+		                      interrupt_cb, NULL, timeout);
+
+	libusb_fill_interrupt_transfer(xfr_in, devh, ENDPOINT_IN, usb_msg_in, 48,
+		                      interrupt_cb, NULL, 0);
+
+
+	if(libusb_submit_transfer(xfr_out) < 0)
+		libusb_free_transfer(xfr_out);
+	handle_events = 2;
+	while(handle_events) {
+		if(libusb_handle_events(NULL) != LIBUSB_SUCCESS) break;
+		if (verbose) fprintf(stdout, "event %d handled\n", handle_events);
+	}
+
+
+	handle_events = 1;
+	if(libusb_submit_transfer(xfr_in) < 0)
+		libusb_free_transfer(xfr_in);
+
+	if (verbose) fprintf(stdout, "here3\n");
+	return 0;
+};
+
+
 int send_read_em4100id(struct libusb_device_handle * devh) {
 	uint8_t cmd[24] = {0};
 	uint8_t answer[48] = {0};
 	int cmd_answer_size = 0;
 
 	prepare_message(cmd, ENDPOINT_OUT, CMD_EM4100ID_READ, NULL, 0);
-	send_message(devh, cmd, answer);
+	send_message_async(devh, cmd, answer);
+	return 0;
 	cmd_answer_size = answer[2] - MESSAGE_STRUCTURE_SIZE - 1;	// 1 extra unknow byte
 	if (cmd_answer_size < 5)
 		fprintf(stdout, "NOTAG\n");
@@ -364,12 +464,13 @@ int send_write_em4100id(struct libusb_device_handle * devh, uint8_t *hex_buf) {
 
 
 
-int send_buzzer(struct libusb_device_handle * devh) {
-	uint8_t cmd[24] = {0};
+int send_buzzer(struct libusb_device_handle * devh, uint8_t duration) {
+	uint8_t cmd[48] = {0};
 	uint8_t answer[48] = {0};
 	uint8_t buzz[1] = {9};
+	buzz[1] = duration;
 	prepare_message(cmd, ENDPOINT_OUT, CMD_BUZZER, &buzz[0], 1);
-	send_message(devh, cmd, answer);
+	send_message_async(devh, cmd, answer);
 };
 
 int hex_string_to_bytes(uint8_t *hex_string, uint8_t *byte_array) {
@@ -392,16 +493,17 @@ int main(int argc,char** argv)
     int option = 0;
     int read_device = 0;
     int write_device = 0;
-    int mode=0, semicolon=0, questionmark=0, split=0, enter=0;
+	int buzzer = 0;
+    int semicolon=0, questionmark=0, split=0, enter=0;
     char* write_string = NULL;
 
-    while ((option = getopt(argc, argv,"w:vrm:sqle")) != -1) {
+    while ((option = getopt(argc, argv,"w:vrb:sqle")) != -1) {
         switch (option) {
             case 'v' : verbose = 1;
                 break;
             case 'r' : read_device = 1;
                 break;
-            case 'm' : mode = atoi(optarg);
+            case 'b' : buzzer = optarg[0]+'0';
                 break;
             case 's' : semicolon = 1;
                 break;
@@ -451,7 +553,19 @@ int main(int argc,char** argv)
         goto out; 
     }
 
+	init_protocol(devh);
+
+    if (buzzer) {
+		send_buzzer(devh, 9);
+    }
+
+    if (buzzer) {
+		send_buzzer(devh, 9);
+    }
+
+	
     if (read_device) {
+//		send_buzzer(devh);
         send_read_em4100id(devh);
     }
 
@@ -461,6 +575,9 @@ int main(int argc,char** argv)
 		send_write_em4100id(devh, hex_buf);
     }
 
+if (verbose) fprintf(stdout, "uninit\n");
+
+//	uninit_protocol(devh);
 //	send_buzzer(devh);
     libusb_release_interface(devh, 0); 
 out: 
