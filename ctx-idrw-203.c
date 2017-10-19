@@ -519,6 +519,7 @@ int main(int argc,char** argv)
                  exit(EXIT_FAILURE);
         }
     }
+
     if (argc < 2) {
         //print_usage();
         goto exit;
@@ -541,9 +542,9 @@ int main(int argc,char** argv)
     if (verbose) fprintf(stdout, "Successfully found the RFID R/W device\n"); 
 
     r = libusb_detach_kernel_driver(devh, 0); 
-    if (r < 0) { 
-//        fprintf(stderr, "libusb_detach_kernel_driver error %d\n", r); 
-//        goto out; 
+    if (r < 0 && r != LIBUSB_ERROR_NOT_FOUND) { 
+        fprintf(stderr, "libusb_detach_kernel_driver error %d\n", r); 
+        goto out; 
     }
 
 
