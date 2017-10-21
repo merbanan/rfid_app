@@ -210,7 +210,7 @@ int send_message(struct libusb_device_handle * devh, uint8_t *message, uint8_t *
 
 void interrupt_cb(struct libusb_transfer *xfr)
 {
-
+	int i;
 	uint8_t* answer;
 
     switch(xfr->status)
@@ -220,7 +220,14 @@ void interrupt_cb(struct libusb_transfer *xfr)
 			answer = xfr->buffer;
 			fprintf(stdout, "interrupt transfer actual_length: %d ", xfr->actual_length);
 			if (xfr->actual_length == 48)
-				fprintf(stdout, "%02x%02x%02x%02x%02x\n",answer[5],answer[6],answer[7],answer[8],answer[9]);
+				for (i=0 ; i<24 ; i++) {
+					if(i%16 == 0)
+						if (verbose) fprintf(stdout,"\n");
+					if (verbose) fprintf(stdout, "%02x ", answer[i]);
+				}
+				if (verbose) fprintf(stdout, "\n");
+
+//				fprintf(stdout, "%02x%02x%02x%02x%02x\n",answer[5],answer[6],answer[7],answer[8],answer[9]);
 			else
 				fprintf(stdout, "\n");
             break;
@@ -288,15 +295,21 @@ int send_message_async(struct libusb_device_handle * devh, uint8_t *message, uin
 	if(libusb_submit_transfer(xfr_out) < 0)
 		libusb_free_transfer(xfr_out);
 	handle_events = 2;
+	usleep(50 * 1000);
+
 	while(handle_events) {
 		if(libusb_handle_events(NULL) != LIBUSB_SUCCESS) break;
 		if (verbose) fprintf(stdout, "event %d handled\n", handle_events);
 	}
 
+	usleep(100 * 1000);
+
 
 	handle_events = 1;
 	if(libusb_submit_transfer(xfr_in) < 0)
 		libusb_free_transfer(xfr_in);
+
+	usleep(50 * 1000);
 
 	if (verbose) fprintf(stdout, "here3\n");
 	return 0;
@@ -326,7 +339,7 @@ int t55xx_reset(struct libusb_device_handle * devh) {
 	uint8_t reset[5] = {0x0, 0x0, 0x0, 0x0, 0x0};
 
 	prepare_message(cmd, ENDPOINT_OUT, CMD_T5557_BLOCK_WRITE, reset, 5);
-	send_message(devh, cmd, answer);
+	send_message_async(devh, cmd, answer);
 	
 }
 
@@ -347,7 +360,7 @@ int t55xx_block_write(struct libusb_device_handle * devh, int block, uint8_t* da
 
 
 	prepare_message(cmd, ENDPOINT_OUT, CMD_T5557_BLOCK_WRITE, bw_buf, 7);
-	send_message(devh, cmd, answer);
+	send_message_async(devh, cmd, answer);
 
 
 /* 	SS PP 11 22 33 44 BB
@@ -450,7 +463,7 @@ int send_write_em4100id(struct libusb_device_handle * devh, uint8_t *hex_buf) {
 	/* reset tag */
 	t55xx_reset(devh);
 
-	send_read_em4100id(devh);
+//	send_read_em4100id(devh);
 //	prepare_message(cmd, ENDPOINT_OUT, CMD_T5557_BLOCK_WRITE, bw_buf, 7 CMD_EM4100ID_READ, NULL, 0);
 //	send_message(devh, cmd, answer);
 //	cmd_answer_size = answer[2] - MESSAGE_STRUCTURE_SIZE - 1;	// 1 extra unknow byte
@@ -567,6 +580,10 @@ int main(int argc,char** argv)
 	
     if (read_device) {
 //		send_buzzer(devh);
+        send_read_em4100id(devh);
+        send_read_em4100id(devh);
+        send_read_em4100id(devh);
+        send_read_em4100id(devh);
         send_read_em4100id(devh);
     }
 
