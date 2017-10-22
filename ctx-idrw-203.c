@@ -139,6 +139,10 @@ Usb payload is 24 bytes large, the unknown layout is most likely T5577/EM4305 st
 #include <malloc.h>
 #include <libusb-1.0/libusb.h> 
 
+#define AUTO_FORMAT 0
+#define T5577_FORMAT 1
+#define EM4305_FORMAT 2
+
 #define VENDOR_ID 0x6688
 #define PRODUCT_ID 0x6850
 
@@ -496,11 +500,12 @@ int send_write_em4100id_em4305(struct libusb_device_handle * devh, uint8_t *hex_
 
 };
 
-int send_write_em4100id(struct libusb_device_handle * devh, uint8_t *hex_buf) {
+int send_write_em4100id(struct libusb_device_handle * devh, uint8_t *hex_buf, int format) {
 	uint8_t cmd[24] = {0};
 	uint8_t answer[48] = {0};
 	uint8_t ds[8] = {0};
-	uint8_t em4100_config[4] = {0x00, 0x14, 0x80, 0x41};
+	uint8_t em4100_config_t5577[4] = {0x00, 0x14, 0x80, 0x41};
+	uint8_t em4100_config_em4305[4] = {0xfa, 0x01, 0x80, 0x00};
 	int cmd_answer_size = 0;
 
 	fprintf(stdout, "%02x%02x%02x%02x%02x\n",hex_buf[0],hex_buf[1],hex_buf[2],hex_buf[3],hex_buf[4]);
@@ -508,26 +513,38 @@ int send_write_em4100id(struct libusb_device_handle * devh, uint8_t *hex_buf) {
 	fprintf(stdout, "%02x %02x %02x %02x ",  ds[0],ds[1],ds[2],ds[3]);
 	fprintf(stdout, "%02x %02x %02x %02x\n",ds[4],ds[5],ds[6],ds[7]);
 
-	/* write em4100 bitstream to block 1 and 2 */
-	t55xx_block_write(devh, 1, ds, 4, NULL);
-	t55xx_block_write(devh, 2, &ds[4], 4, NULL);
+	if (format == AUTO_FORMAT) {
+		fprintf(stdout, "Autoformat not supported yet!\n");
+		return 1;
+	} else if (format == T5577_FORMAT) {
+		/* write em4100 bitstream to block 1 and 2 */
+		t55xx_block_write(devh, 1, ds, 4, NULL);
+		t55xx_block_write(devh, 2, &ds[4], 4, NULL);
 
-	//0000   03 01 0c 12 04 00 00 14 80 41 00 ce 04
+		//0000   03 01 0c 12 04 00 00 14 80 41 00 ce 04
 
-	/* write configuration in block 0 to emulate EM4100; RF/64, Manchester, max block = 2 */
-	t55xx_block_write(devh, 0, em4100_config, 4, NULL);
+		/* write configuration in block 0 to emulate EM4100; RF/64, Manchester, max block = 2 */
+		t55xx_block_write(devh, 0, em4100_config_t5577, 4, NULL);
 
-	/* reset tag */
-	t55xx_reset(devh);
+		/* reset tag */
+		t55xx_reset(devh);
 
-//	send_read_em4100id(devh);
-//	prepare_message(cmd, ENDPOINT_OUT, CMD_T5557_BLOCK_WRITE, bw_buf, 7 CMD_EM4100ID_READ, NULL, 0);
-//	send_message(devh, cmd, answer);
-//	cmd_answer_size = answer[2] - MESSAGE_STRUCTURE_SIZE - 1;	// 1 extra unknow byte
-//	if (cmd_answer_size < 5)
-//		fprintf(stdout, "NOTAG\n");
-//	else
-//		fprintf(stdout, "%02x%02x%02x%02x%02x\n",answer[5],answer[6],answer[7],answer[8],answer[9]);
+		//todo cycle the field 0x14
+	} else if (format == EM4305_FORMAT){
+		/* login to em4305 tag */
+		em4305_login(devh);
+
+		/* write em4100 bitstream to word 5 and 6 */
+		em4305_write_word(devh, 5, ds, 4, NULL);
+		em4305_write_word(devh, 6, &ds[4], 4, NULL);
+
+		/* write em4305 configuration word (4) */
+		em4305_write_word(devh, 4, em4100_config_em4305, 4, NULL);
+		//todo cycle the field 0x14
+	} else {
+		fprintf(stdout, "Unknown format!\n");
+		return 1;
+	}
 
 	return 0;
 };
@@ -563,11 +580,12 @@ int main(int argc,char** argv)
     int option = 0;
     int read_device = 0;
     int write_device = 0;
+	int format = AUTO_FORMAT;
 	int buzzer = 0;
     int semicolon=0, questionmark=0, split=0, enter=0;
     char* write_string = NULL;
 
-    while ((option = getopt(argc, argv,"w:vrb:sqle")) != -1) {
+    while ((option = getopt(argc, argv,"w:vrb:sqlef:")) != -1) {
         switch (option) {
             case 'v' : verbose = 1;
                 break;
@@ -583,6 +601,8 @@ int main(int argc,char** argv)
                 break;
             case 'e' : enter = 1;
                 break;
+			case 'f' : format = atoi(optarg);
+				break;
             case 'w' : write_string = optarg;
                 break;
             default: ;/*print_usage()*/; 
@@ -630,11 +650,7 @@ int main(int argc,char** argv)
 		send_buzzer(devh, 9);
     }
 
-    if (buzzer) {
-		send_buzzer(devh, 9);
-    }
 
-	
     if (read_device) {
 //		send_buzzer(devh);
         send_read_em4100id(devh);
@@ -647,8 +663,8 @@ int main(int argc,char** argv)
     if (write_string) {
 		uint8_t hex_buf[5];
 		hex_string_to_bytes(write_string, hex_buf);
-//		send_write_em4100id(devh, hex_buf);
-		send_write_em4100id_em4305(devh, hex_buf);
+		send_write_em4100id(devh, hex_buf, format);
+//		send_write_em4100id_em4305(devh, hex_buf);
     }
 
 if (verbose) fprintf(stdout, "uninit\n");
