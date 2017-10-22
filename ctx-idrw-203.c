@@ -112,11 +112,14 @@ Command			Data:
 0x12	T5577pageread	(6 bytes): unknown layout
 0x12	T5577blockread	(7 bytes): unknown layout
 0x12	T5577wakeup		(6 bytes): unknown layout
-0x13	Em4305login		(7 bytes): unknown layout
+0x13	Em4305login		(7 bytes): first byte is 4 bit cmd, 3 for login
 0x13	Em4305disable	(7 bytes): unknown layout
 0x13	Em4305readword	(7 bytes): unknown layout
 0x13	Em4305writeword	(7 bytes): unknown layout
 0x13	Em4305protect	(7 bytes): unknown layout
+0x14	CarrierOff		(1 bytes): 2, turn off 125kHz carrier
+0x14	CarrierOn		(1 bytes): 3, turn on 125kHz carrier
+
 
 0x20	mifare_reset		(0 bytes)
 
@@ -150,6 +153,7 @@ Usb payload is 24 bytes large, the unknown layout is most likely T5577/EM4305 st
 #define CMD_BUZZER			0x03
 #define CMD_EM4100ID_READ	0x10
 #define CMD_T5557_BLOCK_WRITE	0x12
+#define CMD_EM4305_CMD	0x13
 
 /* Commands (to computer) */
 #define CMD_EM4100ID_ANSWER	0x90
@@ -341,7 +345,7 @@ int t55xx_reset(struct libusb_device_handle * devh) {
 	prepare_message(cmd, ENDPOINT_OUT, CMD_T5557_BLOCK_WRITE, reset, 5);
 	send_message_async(devh, cmd, answer);
 	
-}
+};
 
 int t55xx_block_write(struct libusb_device_handle * devh, int block, uint8_t* data_buf, int data_buf_size, uint8_t *password) {
 	uint8_t cmd[24] = {0};
@@ -396,7 +400,7 @@ HHHHHHHH H0000011 11122222 33333444 44555556 66667777 78888899 999SSSSS
 01010	5
 00010
 */
-}
+};
 
 int em4100_column_parity(uint8_t* hex_buf, int shift) {
 	int i, p=0;
@@ -437,7 +441,60 @@ int hex_to_em4100_layout(uint8_t* hex_buf, uint8_t* out_buf) {
 	out_buf[5] = ((hex_buf[3]<<1)&0xe0) | (p6<<4) | (hex_buf[3]&0xf);
 	out_buf[6] = (p7<<7) | ((hex_buf[4]>>1)&0x78) | (p8<<2) | ((hex_buf[4]>>2)&0x03);
 	out_buf[7] = (hex_buf[4]<<6) | (p9<<6) | (pc0<<4) | (pc1<<3) | (pc2<<2) | (pc3<<1); 
+};
+
+int em4305_write_word(struct libusb_device_handle * devh, int word, uint8_t* data_buf, int data_buf_size, uint8_t *password) {
+	uint8_t cmd[24] = {0};
+	uint8_t answer[48] = {0};
+	uint8_t ww_buf[7] = {0};
+	int cmd_answer_size = 0;
+
+	ww_buf[0] = 0x01; //write command
+	ww_buf[1] = word; //word index
+	ww_buf[2] = data_buf[0];
+	ww_buf[3] = data_buf[1];
+	ww_buf[4] = data_buf[2];
+	ww_buf[5] = data_buf[3];
+	ww_buf[6] = 0x0;  // ??
+
+	prepare_message(cmd, ENDPOINT_OUT, CMD_EM4305_CMD, ww_buf, 7);
+	send_message_async(devh, cmd, answer);
+};
+
+
+int em4305_login(struct libusb_device_handle * devh) {
+	uint8_t cmd[24] = {0};
+	uint8_t answer[48] = {0};
+	uint8_t login[7] = {0x3, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
+
+	prepare_message(cmd, ENDPOINT_OUT, CMD_EM4305_CMD, login, 7);
+	send_message_async(devh, cmd, answer);
 }
+
+
+int send_write_em4100id_em4305(struct libusb_device_handle * devh, uint8_t *hex_buf) {
+	uint8_t cmd[24] = {0};
+	uint8_t answer[48] = {0};
+	uint8_t ds[8] = {0};
+	uint8_t em4100_config[4] = {0xfa, 0x01, 0x80, 0x00};
+	int cmd_answer_size = 0;
+
+	fprintf(stdout, "%02x%02x%02x%02x%02x\n",hex_buf[0],hex_buf[1],hex_buf[2],hex_buf[3],hex_buf[4]);
+	hex_to_em4100_layout(hex_buf, ds);
+	fprintf(stdout, "%02x %02x %02x %02x ",  ds[0],ds[1],ds[2],ds[3]);
+	fprintf(stdout, "%02x %02x %02x %02x\n",ds[4],ds[5],ds[6],ds[7]);
+
+	/* login to em4305 tag */
+	em4305_login(devh);
+
+	/* write em4100 bitstream to word 5 and 6 */
+	em4305_write_word(devh, 5, ds, 4, NULL);
+	em4305_write_word(devh, 6, &ds[4], 4, NULL);
+
+	/* write em4305 configuration word (4) */
+	em4305_write_word(devh, 4, em4100_config, 4, NULL);
+
+};
 
 int send_write_em4100id(struct libusb_device_handle * devh, uint8_t *hex_buf) {
 	uint8_t cmd[24] = {0};
@@ -590,7 +647,8 @@ int main(int argc,char** argv)
     if (write_string) {
 		uint8_t hex_buf[5];
 		hex_string_to_bytes(write_string, hex_buf);
-		send_write_em4100id(devh, hex_buf);
+//		send_write_em4100id(devh, hex_buf);
+		send_write_em4100id_em4305(devh, hex_buf);
     }
 
 if (verbose) fprintf(stdout, "uninit\n");
