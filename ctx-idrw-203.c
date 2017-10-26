@@ -382,19 +382,20 @@ int send_read_em4100id(struct libusb_device_handle * devh) {
 	uint8_t cmd[24] = {0};
 
 	int cmd_answer_size = 0;
+	int retry_cnt = 10;
 
-	prepare_message(cmd, ENDPOINT_OUT, CMD_EM4100ID_READ, NULL, 0);
-	send_message_async(devh, cmd, answer);
-	handle_interrupt_answer(answer, 48);
-//	while (!answer[0]) {
-//	}
-
-//	return 0;
-	cmd_answer_size = answer[2] - MESSAGE_STRUCTURE_SIZE - 1;
+	// flaky read, retry 10 times
+	while ((cmd_answer_size < 5) && retry_cnt) {
+		prepare_message(cmd, ENDPOINT_OUT, CMD_EM4100ID_READ, NULL, 0);
+		send_message_async(devh, cmd, answer);
+		handle_interrupt_answer(answer, 48);
+		cmd_answer_size = answer[2] - MESSAGE_STRUCTURE_SIZE - 1;
+		retry_cnt--;
+	}
 	if (cmd_answer_size < 5)
 		fprintf(stdout, "NOTAG\n");
 	else
-		fprintf(stdout, "%02x%02x%02x%02x%02x\n",answer[5],answer[6],answer[7],answer[8],answer[9]);
+		fprintf(stdout, "%02X%02X%02X%02X%02X\n",answer[5],answer[6],answer[7],answer[8],answer[9]);
 
 	return 0;
 };
@@ -720,11 +721,6 @@ int main(int argc,char** argv)
 
 
     if (read_device) {
-//		send_buzzer(devh);
-        send_read_em4100id(devh);
-        send_read_em4100id(devh);
-        send_read_em4100id(devh);
-        send_read_em4100id(devh);
         send_read_em4100id(devh);
     }
 
