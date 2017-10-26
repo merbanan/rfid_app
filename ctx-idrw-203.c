@@ -552,10 +552,10 @@ int send_write_em4100id_em4305(struct libusb_device_handle * devh, uint8_t *hex_
 	uint8_t em4100_config[4] = {0xfa, 0x01, 0x80, 0x00};
 	int cmd_answer_size = 0;
 
-	fprintf(stdout, "%02x%02x%02x%02x%02x\n",hex_buf[0],hex_buf[1],hex_buf[2],hex_buf[3],hex_buf[4]);
+//	fprintf(stdout, "%02x%02x%02x%02x%02x\n",hex_buf[0],hex_buf[1],hex_buf[2],hex_buf[3],hex_buf[4]);
 	hex_to_em4100_layout(hex_buf, ds);
-	fprintf(stdout, "%02x %02x %02x %02x ",  ds[0],ds[1],ds[2],ds[3]);
-	fprintf(stdout, "%02x %02x %02x %02x\n",ds[4],ds[5],ds[6],ds[7]);
+//	fprintf(stdout, "%02x %02x %02x %02x ",  ds[0],ds[1],ds[2],ds[3]);
+//	fprintf(stdout, "%02x %02x %02x %02x\n",ds[4],ds[5],ds[6],ds[7]);
 
 	/* login to em4305 tag */
 	em4305_login(devh);
@@ -577,10 +577,10 @@ int send_write_em4100id(struct libusb_device_handle * devh, uint8_t *hex_buf, in
 	uint8_t em4100_config_em4305[4] = {0xfa, 0x01, 0x80, 0x00};
 	int cmd_answer_size = 0;
 
-	fprintf(stdout, "%02x%02x%02x%02x%02x\n",hex_buf[0],hex_buf[1],hex_buf[2],hex_buf[3],hex_buf[4]);
+//	fprintf(stdout, "%02x%02x%02x%02x%02x\n",hex_buf[0],hex_buf[1],hex_buf[2],hex_buf[3],hex_buf[4]);
 	hex_to_em4100_layout(hex_buf, ds);
-	fprintf(stdout, "%02x %02x %02x %02x ",  ds[0],ds[1],ds[2],ds[3]);
-	fprintf(stdout, "%02x %02x %02x %02x\n",ds[4],ds[5],ds[6],ds[7]);
+//	fprintf(stdout, "%02x %02x %02x %02x ",  ds[0],ds[1],ds[2],ds[3]);
+//	fprintf(stdout, "%02x %02x %02x %02x\n",ds[4],ds[5],ds[6],ds[7]);
 
 	if (format == AUTO_FORMAT) {
 		fprintf(stdout, "Autoformat not supported yet!\n");
