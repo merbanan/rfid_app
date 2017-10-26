@@ -466,6 +466,11 @@ HHHHHHHH H0000011 11122222 33333444 44555556 66667777 78888899 999SSSSS
 //ff 80 60 28
 //0c 04 81 e6
 
+//ff 8e 80 b8
+//30 0d 83 be
+
+//ff 8e 81 b8
+//30 0d 83 be
 
 };
 
@@ -500,11 +505,9 @@ int hex_to_em4100_layout(uint8_t* hex_buf, uint8_t* out_buf) {
 	pc2 = em4100_column_parity(hex_buf, 1);
 	pc3 = em4100_column_parity(hex_buf, 0);
 
-	fprintf(stdout, "%d%d%d%d\n",pc0,pc1,pc2,pc3);
-
 	out_buf[0] = 0xff;
 	out_buf[1] = 0x80 | ((hex_buf[0]>>1)&0x78) | (p0<<2) | ((hex_buf[0]>>2)&0x03);
-	out_buf[2] = (hex_buf[0]<<6) | (p1<<5) | (hex_buf[1]>>3) | p2;
+	out_buf[2] = (hex_buf[0]<<6) | (p1<<5) | ((hex_buf[1]>>3)&30) | p2;
 	out_buf[3] = (hex_buf[1]<<4) | (p3<<3) | (hex_buf[2]>>5);
 	out_buf[4] = ((hex_buf[2]<<3)&0x80) | (p4<<6) | ((hex_buf[2]<<2)&0x3c) | (p5<<1) | (hex_buf[3]>>7);
 	out_buf[5] = ((hex_buf[3]<<1)&0xe0) | (p6<<4) | (hex_buf[3]&0xf);
