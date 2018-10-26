@@ -127,15 +127,9 @@ int send_read(int tty_fd_l, int beep, int format, char* output) {
     }
 
 
-    // Calculate checksum (xor over byte 5 to end-1)
-
-    for (i=4 ; i<cnt-1 ; i++) {
-        csum^=c[i];
-    }
-
     // Remove 0xAA,0x00 patterns
     idx = 7;
-    for (i=7 ; i<cnt-1 ; i++) {
+    for (i=7 ; i<cnt ; i++) {
         c[i] = res_arr[idx];
         if ((res_arr[idx]==0xAA) && (res_arr[idx+1]==0x00)) {
             idx++;
@@ -143,8 +137,13 @@ int send_read(int tty_fd_l, int beep, int format, char* output) {
         idx++;
     }
 
-    if (csum != c[cnt-1])
-        printf("Read checksum missmatch!: %X vs %X\n", csum, c[cnt]);
+    // Calculate checksum (xor over byte 5 to end-1)
+    for (i=4 ; i<cnt-1 ; i++) {
+        csum^=res_arr[i];
+    }
+
+    if (csum != res_arr[cnt-1])
+        printf("Read checksum missmatch!: %X vs %X\n", csum, res_arr[cnt-1]);
 
     if (output) {
         int j = 0;
