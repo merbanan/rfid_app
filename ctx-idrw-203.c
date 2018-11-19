@@ -693,6 +693,8 @@ int main(int argc,char** argv)
         exit(1); 
     } 
 
+    libusb_device **devs;
+    ssize_t n = libusb_get_device_list(NULL, &devs);
     devh = libusb_open_device_with_vid_pid(NULL, VENDOR_ID, PRODUCT_ID);
     if (!devh) {
         if (verbose) fprintf(stdout, "USB device open failed\n"); 
@@ -701,7 +703,7 @@ int main(int argc,char** argv)
     if (verbose) fprintf(stdout, "Successfully found the RFID R/W device\n"); 
 
     r = libusb_detach_kernel_driver(devh, 0); 
-    if (r < 0 && r != LIBUSB_ERROR_NOT_FOUND) { 
+    if (r < 0 && r != LIBUSB_ERROR_NOT_FOUND && r != LIBUSB_ERROR_NOT_SUPPORTED) {
         fprintf(stderr, "libusb_detach_kernel_driver error %d\n", r); 
         goto out; 
     }
@@ -737,6 +739,7 @@ if (verbose) fprintf(stdout, "uninit\n");
 //	send_buzzer(devh);
     libusb_release_interface(devh, 0); 
 out: 
+    libusb_free_device_list(devs, 1);
     //	libusb_reset_device(devh); 
     libusb_close(devh); 
     libusb_exit(NULL); 
