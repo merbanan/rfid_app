@@ -15,6 +15,7 @@ idrw_linux
 
 Linux command line tool for another China 125kHz rfid reader/writer usb based one (ffff:0035)
 
+for Android edition: https://github.com/NiceLabs/usb-125khz-idrw
 
 Building
 ========
