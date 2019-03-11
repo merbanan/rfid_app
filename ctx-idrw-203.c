@@ -136,7 +136,6 @@ Usb payload is 24 bytes large, the unknown layout is most likely T5577/EM4305 st
 #include <stdlib.h> 
 #include <getopt.h>
 #include <unistd.h>
-#include <malloc.h>
 #include <libusb-1.0/libusb.h> 
 
 #define AUTO_FORMAT 0
