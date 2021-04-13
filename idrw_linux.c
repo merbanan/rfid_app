@@ -506,6 +506,24 @@ static int send_read(struct libusb_device_handle *devh, int format) {
                 fprintf(stdout,"%03d,%05d", x1,x2);
             }
             break;
+        case 5:     // (5H) in decimal but remove 10th digit
+            {
+                unsigned long long int x2 = c[0];
+                unsigned long long int x1 = ((x2 << 32) | (c[1] << 24) | (c[2] << 16) | (c[3] << 8) | c[4]);
+                printf("%09llu", x1);
+                break;
+            }
+        case 6:
+            {
+                unsigned char num_buf[11] = {0};
+                unsigned char* num_buf_ptr = num_buf + 1;
+                unsigned long long int x2 = c[0];
+                unsigned long long int x1 = ((x2 << 32) | (c[1] << 24) | (c[2] << 16) | (c[3] << 8) | c[4]);
+                snprintf(num_buf, 11, "%09llu", x1);
+                printf("%s", num_buf_ptr);
+                break;
+            }
+
         default: fprintf(stderr,"Unknown format: %d\n", format);
     }
 
